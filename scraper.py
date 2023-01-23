@@ -15,16 +15,31 @@ def extract_next_links(url, resp):
     #         resp.raw_response.url: the url, again
     #         resp.raw_response.content: the content of the page!
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
+    
+    
+    print(resp.raw_response.content)
+    
     return list()
 
 def is_valid(url):
     # Decide whether to crawl this url or not. 
     # If you decide to crawl it, return True; otherwise return False.
     # There are already some conditions that return False.
+    print("running!") ###
     try:
         parsed = urlparse(url)
         if parsed.scheme not in set(["http", "https"]):
             return False
+        
+        if not re.match(
+            r".*\.(ics.uci.edu"
+            + r"|cs.uci.edu"
+            + r"|informatics.uci.edu"
+            + r"|stat.uci.edu"
+            + r"|today.uci.edu/department/information_computer_sciences)/*", parsed.path.lower()):
+            return False
+        
+        
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
@@ -35,6 +50,11 @@ def is_valid(url):
             + r"|thmx|mso|arff|rtf|jar|csv"
             + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
 
+
     except TypeError:
         print ("TypeError for ", parsed)
         raise
+
+
+# if __name__ == "__main__":
+    # extract_next_links("https://www.ics.uci.edu/dept/")
