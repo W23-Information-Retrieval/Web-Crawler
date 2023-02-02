@@ -21,8 +21,6 @@ stop_words = set(stopwords.words('english'))
 
 
 def scraper(url, resp):
-    #checks if status code is within valid range else prints error code
-
     links = extract_next_links(url, resp)
 
     #part D, exporting our global variables for processing to report with pickle
@@ -39,7 +37,7 @@ def tokenize(clean_text: str) -> list:
     wordfinder = re.compile(r"([A-Za-z\d]+)") # regex equation accepts all alphabetic chars and digits in the text file
     words = wordfinder.findall(clean_text) # finds all matches in the line, can take longer depending on line size which means it runs on O(N) time, however, should be quicker than using against entire file
     
-    # we're not considering words 2 characters or less
+    # we're not considering words 2 characters or less (tokenization)
     for word in words:
         if (len(word) > 2):
             token_list.append(word.lower()) # appends each word found in the matches and lowercases it to a list
@@ -64,12 +62,11 @@ def extract_next_links(url, resp) -> list:
     # initialize list for next urls
     found_urls  = list()
     
-    # initialize start domain and format link
+    # gets url without fragment
     # http://sli.ics.uci.edu/Pubs/Abstracts#_tkde10
     current_url = urldefrag(url)[0]
-
-    # implement robots.txt checking:
-    # http://pymotw.com/2/robotparser/
+    
+    # used later for finding subdomains from ics.uci.edu
     url_base = temp_link.scheme + "://" + temp_link.netloc
 
 
@@ -80,13 +77,12 @@ def extract_next_links(url, resp) -> list:
             soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
             # if content obtained not None
             if (resp.raw_response.content is not None):
-                # add check for duplicate or similar links
+                # finds all links and appends it to list
                 for link in soup.find_all('a'):
                     found_urls.append(link.get('href'))
         else:
             return list()
     except Exception as e:
-        print(e) ### just for testing, delete later!
         return list()
 
 
@@ -110,31 +106,31 @@ def extract_next_links(url, resp) -> list:
     clean_text = (' '.join(soup.stripped_strings))
     
 
-    # have a dictionary storing tokens and count from all websites (add tokens from each one crawled)
+    # goes through text and tokenizes each one
+    token_list = tokenize(clean_text.lower()) 
 
-    token_list1 = tokenize(clean_text.lower()) 
-    # checking if we are at start domain, and if so ending loop
+    # checking if we already visited site, and if so ending loop
     # this should stop code if there are no further links to crawl
-    # otherwise, we add the url to the list 
+    
     if temp_link in visitedURLs:
         return list()
+    # checks if url is a unique URL and makes sure it is off ics.uci.edu domain
     elif current_url not in uniqueURLs:
         if re.match(r".*\.ics\.uci\.edu", url_base):
-            # adding in https so it doesn't count http/https separately
             sub_link = str(temp_link.netloc)
             if sub_link != "www.ics.uci.edu" and sub_link != "ics.uci.edu":
                 if "www." in sub_link:
-                    sub_link = sub_link.replace("www.", "")
+                    sub_link = sub_link.replace("www.", "") # removes www. so that all sites are uniform and counted
+                # adding in https so it doesn't count http/https separately
                 icsSubdomains["https://" + sub_link] += 1 # adds subdomain to dictionary
         uniqueURLs.append(current_url)
-
+    # otherwise, we add the url to the visited URLs 
     if temp_link not in visitedURLs:
         visitedURLs.append(temp_link)
 
-    # need to make a dict that counts length of EVERY pages
 
     # count words except those in stopwords and add to dict
-    for word in token_list1:
+    for word in token_list:
         if word not in stop_words:
             wordCount[word] += 1
 
