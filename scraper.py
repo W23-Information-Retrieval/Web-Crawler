@@ -1,23 +1,52 @@
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urldefrag, urljoin
+from urllib.robotparser import RobotFileParser
 from bs4 import BeautifulSoup
 import nltk
 from nltk.corpus import stopwords
 from collections import defaultdict
+import pickle
 
-uniqueURL = []
-wordCount = {}
+uniqueURLs = []
+wordCount = defaultdict(int) # make dictionary with words found in each page without stop words
+visitedURLs = []
+icsSubdomains = defaultdict(int) # {subdomain : count}
+longest_page_url = "" # stores longest page (by text content)
+longest_page_length = 0
 
 nltk.download('stopwords')
 stop_words = set(stopwords.words('english'))
-# make dictionary with words found in each page without stop words
-word_count = defaultdict(int)
+
+
+
 
 def scraper(url, resp):
-    links = extract_next_links(url, resp)
-    return [link for link in links if is_valid(link)]
+    #checks if status code is within valid range else prints error code
 
-def extract_next_links(url, resp):
+    links = extract_next_links(url, resp)
+
+    #part D, exporting our global variables for processing to report with pickle
+    # wb to open and write to binary pkl file
+    with open('report.pkl', 'wb') as file:
+        pickle.dump([uniqueURLs, wordCount, visitedURLs, longest_page_url, longest_page_length, icsSubdomains], file)
+
+    return [link for link in links if is_valid(link)]
+    
+
+def tokenize(clean_text: str) -> list:
+    # finds all the words in the page
+    token_list = []
+    wordfinder = re.compile(r"([A-Za-z\d]+)") # regex equation accepts all alphabetic chars and digits in the text file
+    words = wordfinder.findall(clean_text) # finds all matches in the line, can take longer depending on line size which means it runs on O(N) time, however, should be quicker than using against entire file
+    
+    # we're not considering words 2 characters or less
+    for word in words:
+        if (len(word) > 2):
+            token_list.append(word.lower()) # appends each word found in the matches and lowercases it to a list
+    
+    return token_list
+
+def extract_next_links(url, resp) -> list:
     # Implementation required.
     # url: the URL that was used to get the page
     # resp.url: the actual url of the page
@@ -29,49 +58,89 @@ def extract_next_links(url, resp):
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
     
     
-    #get link and parse
+    # get link and parse
     temp_link = urlparse(url)
     
-    #initialize list for next urls
-    found_url  = list()
+    # initialize list for next urls
+    found_urls  = list()
     
-    #initialize start domain and format link
-    start_domain = temp_link.netloc + temp_link.path.rstrip('/')
+    # initialize start domain and format link
+    # http://sli.ics.uci.edu/Pubs/Abstracts#_tkde10
+    current_url = urldefrag(url)[0]
+
+    # implement robots.txt checking:
+    # http://pymotw.com/2/robotparser/
+    url_base = temp_link.scheme + "://" + temp_link.netloc
+
 
     # catching beautiful soup exception if it comes up
     try:
-        soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+        # if link status is valid
+        if 200 <= resp.status < 300:
+            soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+            # if content obtained not None
+            if (resp.raw_response.content is not None):
+                # add check for duplicate or similar links
+                for link in soup.find_all('a'):
+                    found_urls.append(link.get('href'))
+        else:
+            return list()
     except Exception as e:
-        print(e)
-        return found_url
+        print(e) ### just for testing, delete later!
+        return list()
 
-    # read and format content using regex
-    text_content = re.findall(r'[a-z]{2,}', soup.text.lower())
+
+
+    #https://www.geeksforgeeks.org/remove-all-style-scripts-and-html-tags-using-beautifulsoup/
+    #this loops through the html data and removes all html markup
+    for data in soup(['style', 'script']):
+        #removes tags
+        data.decompose()
     
-    # if content obtained not None
-    if (resp.raw_response.content is not None):
-        # add check for duplicate or similar links
-        for link in soup.find_all('a'):
-            #make sure to add defragment part/format link
-            found_url.append(link.get('href'))
+    # avoiding crawling the website if it has low information value (determined by a threshold of some small number)
+    if len(list(soup.stripped_strings)) < 100: 
+        return list()
+    
+    global longest_page_length, longest_page_url
+    # for report -- stores page with most words
+    if len(list(soup.stripped_strings)) > longest_page_length:
+        longest_page_length = len(list(soup.stripped_strings))
+        longest_page_url = url
+    
+    clean_text = (' '.join(soup.stripped_strings))
+    
 
+    # have a dictionary storing tokens and count from all websites (add tokens from each one crawled)
+
+    token_list1 = tokenize(clean_text.lower()) 
     # checking if we are at start domain, and if so ending loop
-    # # this should stop code if there are no further links to crawl
-    # # otherwise, we add the url to the list and save the size of its 
-    # # content so we can traverse it later
-    # if start_domain in uniqueURL:
-    #     return found_url
-    # elif start_domain not in uniqueURL and len(text_content) > 0:
-    #     uniqueURL[start_domain] = len(text_content)
+    # this should stop code if there are no further links to crawl
+    # otherwise, we add the url to the list 
+    if temp_link in visitedURLs:
+        return list()
+    elif current_url not in uniqueURLs:
+        if re.match(r".*\.ics\.uci\.edu", url_base):
+            # adding in https so it doesn't count http/https separately
+            sub_link = str(temp_link.netloc)
+            if sub_link != "www.ics.uci.edu" and sub_link != "ics.uci.edu":
+                if "www." in sub_link:
+                    sub_link = sub_link.replace("www.", "")
+                icsSubdomains["https://" + sub_link] += 1 # adds subdomain to dictionary
+        uniqueURLs.append(current_url)
 
-    # # count words except those in stopwords and add to dict
-    # for word in text_content:
-    #     if word not in stop_words:
-    #         word_count[word] += 1
+    if temp_link not in visitedURLs:
+        visitedURLs.append(temp_link)
 
-    return found_url
+    # need to make a dict that counts length of EVERY pages
 
-def is_valid(url):
+    # count words except those in stopwords and add to dict
+    for word in token_list1:
+        if word not in stop_words:
+            wordCount[word] += 1
+
+    return found_urls
+
+def is_valid(url) -> bool:
     # Decide whether to crawl this url or not. 
     # If you decide to crawl it, return True; otherwise return False.
     # There are already some conditions that return False.
@@ -87,6 +156,11 @@ def is_valid(url):
             + r"|informatics\.uci\.edu"
             + r"|stat\.uci\.edu)", parsed.netloc.lower()):
             return False
+
+        # https://support.archive-it.org/hc/en-us/articles/208824546-Archiving-Wix-sites
+        # block wix websites which can be traps
+        if re.match(r"^.*/[^/]{300,}$", parsed.path.lower()) or re.match(r"^.*calendar.*$", parsed.netloc.lower()) or re.match(r"/pdf/", parsed.path.lower()):
+            return False
         
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
@@ -94,7 +168,7 @@ def is_valid(url):
             + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
             + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names"
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
-            + r"|epub|dll|cnf|tgz|sha1"
+            + r"|epub|dll|cnf|tgz|sha1|wix|blur_|calendar" # block wix, blur_, calendar sites which are traps
             + r"|thmx|mso|arff|rtf|jar|csv"
             + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
 
