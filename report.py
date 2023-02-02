@@ -6,17 +6,13 @@ with open('report.pkl', 'rb') as file:
 
 with open('report.txt', 'w') as report:
     report.write("Report:\n")
-    #count visitedURLs?
+    # count unique pages
     report.write("\n>>>Unique Pages Found: " + str(len(uniqueURLs)) + "\n")
-
+    # writes longest page and its length
     report.write("\n>>>Longest Page (by Word Count): " + longest_page_url + " (" + str(longest_page_length) + " words)" + "\n")
-    #process wordCount
     
-
+    # writes out most common words by sorting by count, then name
     report.write("\n>>>50 Most Common Words:\n")
-    # for key,value in wordCount.items():
-    #     # if count < 50:
-    #     report.write(key + value + "\n")
     count = 0
     for key,value in sorted(wordCount.items(), key=lambda x:(-x[1], x)):
         if count < 50:
@@ -25,7 +21,7 @@ with open('report.txt', 'w') as report:
             break
         count += 1
 
-    #count uniqueURLs? then submit list ordered alphabetically and # of unique pages in each domain
+    # writes all subdomains ordered alphabetically by key and # of unique pages in each domain
     report.write("\n>>>Subdomains Found:\n")
     for key,value in sorted(icsSubdomains.items()):
         report.write(key + ", " + str(value) + "\n")
