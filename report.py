@@ -21,7 +21,7 @@ with open('report.txt', 'w') as report:
             break
         count += 1
 
-    # writes all subdomains ordered alphabetically by key and # of unique pages in each domain
-    report.write("\n>>>Subdomains Found:\n")
+    # counts and writes all subdomains ordered alphabetically by key and # of unique pages in each domain
+    report.write("\n>>>" + str(len(icsSubdomains)) + " Subdomains Found:\n")
     for key,value in sorted(icsSubdomains.items()):
         report.write(key + ", " + str(value) + "\n")
