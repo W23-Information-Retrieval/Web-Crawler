@@ -125,8 +125,8 @@ def is_valid(url) -> bool:
 
         # https://support.archive-it.org/hc/en-us/articles/208824546-Archiving-Wix-sites
         # block wix websites which can be traps
-        # blocks share, comments, action since they lead to the same page 
-        if re.match(r"^.*/[^/]{300,}$", parsed.path.lower()) or "pdf" in url or "share=" in url or "#comment" in url or "#respond" in url or "action=" in url:
+        # blocks share, comments, action, ical since they lead to the same page 
+        if re.match(r"^.*/[^/]{300,}$", parsed.path.lower()) or "pdf" in url or "share=" in url or "#comment" in url or "#respond" in url or "action=" in url or "ical=" in url:
             return False
         
         return not re.match(
